@@ -187,10 +187,11 @@ class FullSerial():
 
 ard = FullSerial('/dev/ttyUSB0', baudrate=9600)
 
-for i in range(32000, 40000):
+for i in range(0, 40000):
     #print(i)
-    resp = ard.sendmessage(2, (i,i), ack=True)
+    resp = ard.sendmessage(2, (8,i), ack=True)
     #print(resp)
     values = ard.parsedata('ii', resp)
     print(values)
+    time.sleep(2)
 
