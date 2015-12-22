@@ -23,7 +23,7 @@ class FullSerial():
         self.receptionstarted = False
         self.receptiondata = bytearray()
         self.esc = False
-        self.id = set(range(0,20))
+        self.id = set(range(1,20))
         self.__idlock = threading.Lock()
         self.__seriallock = threading.Lock()
         
@@ -44,7 +44,7 @@ class FullSerial():
         start_time = self.__getMillis()
         while (self.__getMillis() - start_time) < ACK_TIMEOUT:
             byte = self.serial.read(1)
-            #print(byte)
+            print(byte)
             if not byte:
                 #print("Nothing received")
                 continue
@@ -187,11 +187,12 @@ class FullSerial():
 
 ard = FullSerial('/dev/ttyUSB0', baudrate=9600)
 
-for i in range(0, 40000):
+    
+
+for i in range(0, 30000):
     #print(i)
-    resp = ard.sendmessage(2, (8,i), ack=True)
-    #print(resp)
-    values = ard.parsedata('ii', resp)
+    resp = ard.sendmessage(2, (i, "coucou"), ack=True)
+    values = ard.parsedata('is', resp)
     print(values)
     time.sleep(2)
 
