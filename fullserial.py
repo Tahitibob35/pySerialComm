@@ -44,7 +44,7 @@ class FullSerial():
         start_time = self.__getMillis()
         while (self.__getMillis() - start_time) < ACK_TIMEOUT:
             byte = self.serial.read(1)
-            print(byte)
+            #print(byte)
             if not byte:
                 #print("Nothing received")
                 continue
@@ -106,9 +106,8 @@ class FullSerial():
         return int(round(time.time() * 1000))            
             
         
-    def sendmessage(self, action, values, ack=False, immediate=False):
+    def sendmessage(self, action, values=None, ack=False, immediate=False):
         self.action = action
-        self.values = values
         self.ack = ack
         self.immediate = immediate
 
@@ -121,17 +120,17 @@ class FullSerial():
 
         
         self.payload = self.payload + bytes([action])
-        
-        for value in self.values:
-            if isinstance(value, int):
-                if not(-32768 <= value <= 32767):
-                    raise ValueError('Arduino integer must be in range(-32,768, 32,767)')
-                lowbyte, highbyte = struct.pack('h', value)
-                self.payload = self.payload + bytes([highbyte])           # First byte
-                self.payload = self.payload + bytes([lowbyte])            # Second byte
-            if isinstance(value, str):
-                self.payload = self.payload + bytearray(value, "utf-8")
-                self.payload = self.payload + bytearray([0])
+        if values:
+            for value in values:
+                if isinstance(value, int):
+                    if not(-32768 <= value <= 32767):
+                        raise ValueError('Arduino integer must be in range(-32,768, 32,767)')
+                    lowbyte, highbyte = struct.pack('h', value)
+                    self.payload = self.payload + bytes([highbyte])           # First byte
+                    self.payload = self.payload + bytes([lowbyte])            # Second byte
+                if isinstance(value, str):
+                    self.payload = self.payload + bytearray(value, "utf-8")
+                    self.payload = self.payload + bytearray([0])
         #print(self.payload)
         self.__seriallock.acquire()
         self.serial.write(START)                                   # The START flag
@@ -158,7 +157,7 @@ class FullSerial():
             checksum = checksum ^ c
         return bytes((checksum, ))
 
-    def parsedata(self, dataformat, data):
+    def parsedata(self, dataformat = None, data = None):
         values = []
         index = 0
         for f in dataformat:
@@ -188,11 +187,15 @@ class FullSerial():
 ard = FullSerial('/dev/ttyUSB0', baudrate=9600)
 
     
-
-for i in range(0, 30000):
+start = int(round(time.time() * 1000))
+for i in range(0, 1000):
     #print(i)
-    resp = ard.sendmessage(2, (i, "coucou"), ack=True)
-    values = ard.parsedata('is', resp)
-    print(values)
-    time.sleep(2)
-
+    #resp = ard.sendmessage(2, (i, "coucou"), ack=True)
+    resp = ard.sendmessage(2, (i,) , ack = True)
+    values = ard.parsedata("i", resp)
+    #print(values)
+    if values[0] != i:
+        0/0
+        
+end = int(round(time.time() * 1000))
+print(end-start)
