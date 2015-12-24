@@ -34,17 +34,12 @@ class FullSerial():
         thread.start()                                  # Start the execution
         """
 
-    def getMessage(self, expected_id):
-        i = 0
-        """while True:
-            byte = self.serial.read(1)
-            print(byte)
-        """
+    def __read(self, timeout):
         messagereceived = False
         start_time = self.__getMillis()
-        while (self.__getMillis() - start_time) < ACK_TIMEOUT:
+        while (self.__getMillis() - start_time) < timeout:
             byte = self.serial.read(1)
-            #print(byte)
+            print(byte)
             if not byte:
                 #print("Nothing received")
                 continue
@@ -63,11 +58,11 @@ class FullSerial():
                         
                         action = self.receptiondata[1]
                         message_id = self.receptiondata[2]
-                        if expected_id != message_id:                      # Check if the message is expected
-                            continue
+
                         data = None
                         if len(self.receptiondata) > 3:
-                            data = self.receptiondata[3:]  
+                            data = self.receptiondata[3:]
+                            
                         return action, message_id, data
             
                     if byte == ESC:
@@ -86,7 +81,24 @@ class FullSerial():
                             self.esc = False
                         else:
                             self.receptiondata += byte
-                    continue
+        return None, None, None
+
+    def getMessage(self, expected_id):
+        i = 0
+        """while True:
+            byte = self.serial.read(1)
+            print(byte)
+        """
+        start_time = self.__getMillis()
+        while (self.__getMillis() - start_time) < ACK_TIMEOUT:
+            action, message_id, data = self.__read(start_time + ACK_TIMEOUT - self.__getMillis())
+            
+            if expected_id == message_id:                      # Check if the message is expected
+                data = None
+                if len(self.receptiondata) > 3:
+                        data = self.receptiondata[3:]  
+                        return action, message_id, data
+
         raise TimeoutError("Ack timeout expired...")
 
                 
@@ -188,12 +200,12 @@ ard = FullSerial('/dev/ttyUSB0', baudrate=9600)
 
     
 start = int(round(time.time() * 1000))
-for i in range(0, 1000):
+for i in range(0, 2):
     #print(i)
     #resp = ard.sendmessage(2, (i, "coucou"), ack=True)
     resp = ard.sendmessage(2, (i,) , ack = True)
     values = ard.parsedata("i", resp)
-    #print(values)
+    print(values)
     if values[0] != i:
         0/0
         
