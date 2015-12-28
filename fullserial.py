@@ -1,5 +1,6 @@
 import serial
 import struct
+import sys
 import time
 import threading
 
@@ -27,6 +28,7 @@ class FullSerial():
         self.__idlock = threading.Lock()
         self.__seriallock = threading.Lock()
         self.__actions = {}
+        self.__stoprequested = False
         
 
         # The listenner
@@ -37,12 +39,17 @@ class FullSerial():
 
     def begin(self):
         self.serial.timeout = 0.1
-        thread = threading.Thread(target=self.listenner, args=())
-        thread.daemon = True                            # Daemonize thread
-        thread.start()                                  # Start the execution
+        self.thread = threading.Thread(target=self.listenner, args=())
+        self.thread.daemon = True                            # Daemonize thread
+        self.thread.start()                                  # Start the execution
+
+    def end(self):
+        self.__stoprequested = True
+        self.thread.join()
+
 
     def listenner(self):
-        while True:
+        while not self.__stoprequested:
             byte = self.serial.read(1)
             #print(byte)
             if byte == START:
@@ -258,6 +265,16 @@ ard = FullSerial('/dev/ttyUSB0', baudrate=9600)
 ard.attach(2, test)
 
 ard.begin()
+
+while True:
+    try:
+        time.sleep(0.1)
+    except (KeyboardInterrupt, SystemExit):
+        ard.end()
+        sys.exit(0)
+
+
+
 
 
 """
