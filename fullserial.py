@@ -29,19 +29,16 @@ class FullSerial():
         self.__seriallock = threading.Lock()
         self.__actions = {}
         self.__stoprequested = False
+        self.__threadstarted = False
         
 
-        # The listenner
-        """thread = threading.Thread(target=self.listenner, args=())
-        thread.daemon = True                            # Daemonize thread
-        thread.start()                                  # Start the execution
-        """
-
     def begin(self):
+        self.__threadstarted = True
         self.serial.timeout = 0.1
         self.thread = threading.Thread(target=self.listenner, args=())
         self.thread.daemon = True                            # Daemonize thread
         self.thread.start()                                  # Start the execution
+
 
     def end(self):
         self.__stoprequested = True
@@ -49,117 +46,67 @@ class FullSerial():
 
 
     def listenner(self):
-        while not self.__stoprequested:
-            byte = self.serial.read(1)
-            #print(byte)
-            if byte == START:
-                #print("START")
-                self.receptionstarted = True
-                self.receptiondata = bytearray()
-            else:
-                if self.receptionstarted :
-                    if byte == END:
-                        #print("END")
-                        self.receptionstarted = False
-                        #print("Data received :")
-                        #print(self.receptiondata)
-                        
-                        action = self.receptiondata[1]
-                        message_id = self.receptiondata[2]
-
-                        data = None
-                        if len(self.receptiondata) > 3:
-                            data = self.receptiondata[3:]                            
-                        
-                        if action in self.__actions:
-                            self.__actions[action](data)
-            
-                    if byte == ESC:
-                        self.esc = True
-                    else:
-                        if self.esc:
-                            if byte == TSTART:
-                                self.receptiondata += START
-                            elif byte == TEND:
-                                self.receptiondata += END
-                            elif byte == TESC:
-                                self.receptiondata += ESC
-                            else:
-                                raise ValueError("Unknow escaped character : %s" % byte)
-                            self.esc = False
-                        else:
-                            self.receptiondata += byte
-
+        self.__read()
         
-    def __read(self, timeout):
+    def __read(self, timeout=None, expectedid = None):
         messagereceived = False
         start_time = self.__getMillis()
-        while (self.__getMillis() - start_time) < timeout:
+        while True:
+            if timeout:
+                if (self.__getMillis() - start_time) > timeout:
+                    #print("to")
+                    return None
+
             byte = self.serial.read(1)
             #print(byte)
             if byte == START:
                 #print("START")
                 self.receptionstarted = True
                 self.receptiondata = bytearray()
-            else:
-                if self.receptionstarted :
-                    if byte == END:
-                        #print("END")
-                        self.receptionstarted = False
-                        #print("Data received :")
-                        #print(self.receptiondata)
-                        
+            elif self.receptionstarted :
+                if byte == END:
+                    #print("END")
+                    self.receptionstarted = False
+                    #print("Data received :")
+                    #print(self.receptiondata)
+                    message_id = self.receptiondata[2]
+                    if (expectedid == None) or (expectedid == message_id):
                         action = self.receptiondata[1]
-                        message_id = self.receptiondata[2]
-
                         data = None
                         if len(self.receptiondata) > 3:
                             data = self.receptiondata[3:]
-                            
-                        if action in self.__actions:
-                            self.__actions[action](data)
-                            
-            
-                    if byte == ESC:
-                        self.esc = True
-                    else:
-                        if self.esc:
-                            if byte == TSTART:
-                                self.receptiondata += START
-                            elif byte == TEND:
-                                self.receptiondata += END
-                            elif byte == TESC:
-                                self.receptiondata += ESC
-                            else:
-                                raise ValueError("Unknow escaped character : %s" % byte)
-                            self.esc = False
+                        return action, message_id, data
+                    print("unexpected msg: %s" % self.receptiondata)
+                                                    
+        
+                elif byte == ESC:
+                    self.esc = True
+                else:
+                    if self.esc:
+                        if byte == TSTART:
+                            self.receptiondata += START
+                        elif byte == TEND:
+                            self.receptiondata += END
+                        elif byte == TESC:
+                            self.receptiondata += ESC
                         else:
-                            self.receptiondata += byte
-        return None, None, None
+                            raise ValueError("Unknow escaped character : %s" % byte)
+                        self.esc = False
+                    else:
+                        self.receptiondata += byte
     
 
-    def getMessage(self, expected_id):
+    def getAck(self, expected_id):
         i = 0
         """while True:
             byte = self.serial.read(1)
             print(byte)
         """
-        start_time = self.__getMillis()
-        while (self.__getMillis() - start_time) < ACK_TIMEOUT:
-            action, message_id, data = self.__read(start_time + ACK_TIMEOUT - self.__getMillis())
-            
-            if (action ==0) & (expected_id == message_id):                      # Check if the message is expected
-                data = None
-                if len(self.receptiondata) > 3:
-                        data = self.receptiondata[3:]  
-                        return action, message_id, data
-            elif action > 0:
-                if action in self.__actions:
-                    self.__actions[action](data)
-                
+        result = self.__read(ACK_TIMEOUT, expected_id)
+        if result == None:
+            raise TimeoutError("Ack timeout expired...")
 
-        raise TimeoutError("Ack timeout expired...")
-
+        return result
                 
 
     def __get_id(self):
@@ -174,23 +121,14 @@ class FullSerial():
 
 
     def __getMillis(self):
-        return int(round(time.time() * 1000))            
-            
-        
-    def sendmessage(self, action, values=None, ack=False, immediate=False):
-        self.action = action
-        self.ack = ack
-        self.immediate = immediate
+        return int(round(time.time() * 1000))
 
-        self.payload = bytearray()                                   # Prepare the payload
-        if ack:
-            sent_id = self.__get_id()
-            self.payload = self.payload + bytes((sent_id, ))
-        else:
-            self.payload = self.payload + bytes((0, ))
 
-        
+    def __sendmessage(self, action, messageid, values):
+        self.payload = bytearray()
+        self.payload = bytes((messageid, ))
         self.payload = self.payload + bytes([action])
+
         if values:
             for value in values:
                 if isinstance(value, int):
@@ -202,6 +140,7 @@ class FullSerial():
                 if isinstance(value, str):
                     self.payload = self.payload + bytearray(value, "utf-8")
                     self.payload = self.payload + bytearray([0])
+                    
         #print(self.payload)
         self.__seriallock.acquire()
         self.serial.write(START)                                   # The START flag
@@ -209,12 +148,30 @@ class FullSerial():
         self.__writetoserial(self.payload)                         # The payload
         self.serial.write(END)                                     # The END flag
         
+            
+        
+    def sendmessage(self, action, values=None, ack=False):
+        self.action = action
+        self.ack = ack
+                                           # Prepare the payload
         if ack:
-            action, message_id, data = self.getMessage(sent_id)
-            self.__release_id(message_id)
-            self.__seriallock.release()
-            return data
+            messageid = self.__get_id()
+        else:
+            messageid = 0
+
+        self.__sendmessage(action, messageid, values)       
+        
+        
+        if ack:
+            if self.__threadstarted:                                                #Mode thread
+                pass
+            else:                                                                   #Mode sans thread
+                action, messageid, data = self.getAck(messageid)
+                self.__release_id(messageid)
+                self.__seriallock.release()
+                return data
         self.__seriallock.release()
+        
 
     def __writetoserial(self, data):
         data = data.replace(ESC, ESC + TESC)
@@ -264,8 +221,8 @@ ard = FullSerial('/dev/ttyUSB0', baudrate=9600)
 
 ard.attach(2, test)
 
-ard.begin()
-
+#ard.begin()
+"""
 while True:
     try:
         time.sleep(0.1)
@@ -286,4 +243,3 @@ for i in range(0, 2):
     values = ard.parsedata("is", resp)
     print(values)
     
-"""
