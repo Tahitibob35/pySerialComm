@@ -14,7 +14,7 @@ TSTART = b'\x64'
 TEND =   b'\x65'
 TESC =   b'\x66'
 MESSAGE_LENGTH = 20
-ACK_TIMEOUT = 5000
+ACK_TIMEOUT = 6000
 
 
 
@@ -30,6 +30,8 @@ class FullSerial():
         self.__actions = {}
         self.__stoprequested = False
         self.__threadstarted = False
+        self.__ackwaited = {}
+        self.__ackdata = {}
         
 
     def begin(self):
@@ -46,7 +48,24 @@ class FullSerial():
 
 
     def listenner(self):
-        self.__read()
+        while True:
+            msg = self.__read()
+            if msg == None:
+                print(self.__ackwaited)
+                print(self.__ackdata)            
+                continue
+            action, messageid, data = msg
+            print("msg received : ");
+            print(msg)
+
+            if action == 0:                        # ACK received
+                if messageid in self.__ackwaited:
+                    self.__ackdata[messageid] = data
+                    self.__ackwaited[messageid].set()
+                else:
+                    print("ack inconnu")
+
+        
         
     def __read(self, timeout=None, expectedid = None):
         messagereceived = False
@@ -151,6 +170,7 @@ class FullSerial():
             
         
     def sendmessage(self, action, values=None, ack=False):
+        
         self.action = action
         self.ack = ack
                                            # Prepare the payload
@@ -159,12 +179,26 @@ class FullSerial():
         else:
             messageid = 0
 
+        if ack and self.__threadstarted:    # thread mode, need a lock
+            evt = threading.Event()            
+            self.__ackwaited[messageid] = evt
+
         self.__sendmessage(action, messageid, values)       
         
         
         if ack:
             if self.__threadstarted:                                                #Mode thread
-                pass
+                result =  evt.wait(ACK_TIMEOUT / 1000)
+                del self.__ackwaited[messageid]
+                del evt
+                self.__seriallock.release()
+
+                if not result:
+                    raise TimeoutError("Ack timeout expired...")
+                data = self.__ackdata[messageid]
+                del self.__ackdata[messageid]
+                self.__seriallock.release()
+                return data
             else:                                                                   #Mode sans thread
                 action, messageid, data = self.getAck(messageid)
                 self.__release_id(messageid)
@@ -221,7 +255,7 @@ ard = FullSerial('/dev/ttyUSB0', baudrate=9600)
 
 ard.attach(2, test)
 
-#ard.begin()
+ard.begin()
 """
 while True:
     try:
@@ -237,9 +271,19 @@ while True:
 """
     
 for i in range(0, 2):
-    #print(i)
-    resp = ard.sendmessage(2, (i, "coucou"), ack=True)
+    print(i)
+    print(ard._FullSerial__ackdata)
+    print(ard._FullSerial__ackwaited)
+    try:
+        resp = ard.sendmessage(2, (i, "coucou"), ack=True)
+    except:
+        continue
     #resp = ard.sendmessage(2, (i,) , ack = True)
     values = ard.parsedata("is", resp)
+    print("retour de l'ack : ")
     print(values)
+
+
+print(ard._FullSerial__ackdata)
+print(ard._FullSerial__ackwaited)
     
