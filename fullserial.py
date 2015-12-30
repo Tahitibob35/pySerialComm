@@ -21,6 +21,7 @@ ACK_TIMEOUT = 6000
 class FullSerial():
     def __init__(self, device, baudrate=9600):
         self.serial = serial.Serial(device, timeout=1, baudrate=baudrate)
+        self.serial.flushInput()
         self.receptionstarted = False
         self.receptiondata = bytearray()
         self.esc = False
@@ -48,7 +49,7 @@ class FullSerial():
 
 
     def listenner(self):
-        while True:
+        while not self.__stoprequested:
             msg = self.__read()
             if msg == None:
                 print(self.__ackwaited)
@@ -62,9 +63,14 @@ class FullSerial():
                 if messageid in self.__ackwaited:
                     self.__ackdata[messageid] = data
                     self.__ackwaited[messageid].set()
+                    continue
                 else:
                     print("ack inconnu")
-
+            if action in self.__actions:
+                self.__actions[action](messageid, data)
+            
+        print("Stopping listener")
+        self.__threadstarted = False
         
         
     def __read(self, timeout=None, expectedid = None):
@@ -72,9 +78,11 @@ class FullSerial():
         start_time = self.__getMillis()
         while True:
             if timeout:
-                if (self.__getMillis() - start_time) > timeout:
-                    #print("to")
+                if ((self.__getMillis() - start_time) > timeout):
+                    print("to")
                     return None
+            if self.__stoprequested:
+                return None
 
             byte = self.serial.read(1)
             #print(byte)
@@ -161,6 +169,8 @@ class FullSerial():
                     self.payload = self.payload + bytearray([0])
                     
         #print(self.payload)
+        print("lock acquired for :")
+        print(action, messageid, values)
         self.__seriallock.acquire()
         self.serial.write(START)                                   # The START flag
         self.__writetoserial(self.__checksum(self.payload))        # The checksum
@@ -188,22 +198,29 @@ class FullSerial():
         
         if ack:
             if self.__threadstarted:                                                #Mode thread
+                self.__seriallock.release()
                 result =  evt.wait(ACK_TIMEOUT / 1000)
                 del self.__ackwaited[messageid]
                 del evt
-                self.__seriallock.release()
+                print("lock released for :")
+                print(action, messageid, values)
+                
 
                 if not result:
                     raise TimeoutError("Ack timeout expired...")
                 data = self.__ackdata[messageid]
                 del self.__ackdata[messageid]
-                self.__seriallock.release()
                 return data
             else:                                                                   #Mode sans thread
                 action, messageid, data = self.getAck(messageid)
                 self.__release_id(messageid)
                 self.__seriallock.release()
                 return data
+        self.__seriallock.release()
+        
+
+    def sendack(self, messageid, data=None):
+        self.__sendmessage(0, messageid, data)
         self.__seriallock.release()
         
 
@@ -246,10 +263,16 @@ class FullSerial():
     def attach(self, action, function):
         self.__actions[action] = function
 
+i = 0
 
-def test(data):
-    print("Action !!")    
+#Ajouter le messageid avec un decorateur ?
+def test(messageid, data):
+    print("demande de valeur de l'ard")
     print(ard.parsedata('is', data))
+    ard.sendack(messageid, (i, ))
+    print("envoi de la valeur a l'ard: %s", i)
+    i = i + 1
+    
 
 ard = FullSerial('/dev/ttyUSB0', baudrate=9600)
 
@@ -269,21 +292,15 @@ while True:
 
 
 """
-    
-for i in range(0, 2):
+"""    
+for i in range(0, 20):
     print(i)
-    print(ard._FullSerial__ackdata)
-    print(ard._FullSerial__ackwaited)
-    try:
-        resp = ard.sendmessage(2, (i, "coucou"), ack=True)
-    except:
-        continue
+    resp = ard.sendmessage(2, (i, "coucou"), ack=True)
     #resp = ard.sendmessage(2, (i,) , ack = True)
     values = ard.parsedata("is", resp)
     print("retour de l'ack : ")
     print(values)
-
-
-print(ard._FullSerial__ackdata)
-print(ard._FullSerial__ackwaited)
-    
+    time.sleep(1)
+    """
+time.sleep(10)
+ard.end()
