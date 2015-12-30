@@ -4,8 +4,7 @@ import sys
 import time
 import threading
 
-ser = serial.Serial('/dev/ttyUSB0')
-time.sleep(2)
+#ser = serial.Serial('/dev/ttyUSB1')
 
 START =  b'\x61'
 END =    b'\x62'
@@ -21,6 +20,7 @@ ACK_TIMEOUT = 6000
 class FullSerial():
     def __init__(self, device, baudrate=9600):
         self.serial = serial.Serial(device, timeout=1, baudrate=baudrate)
+        time.sleep(2)
         self.serial.flushInput()
         self.receptionstarted = False
         self.receptiondata = bytearray()
@@ -267,14 +267,15 @@ i = 0
 
 #Ajouter le messageid avec un decorateur ?
 def test(messageid, data):
+    global i
     print("demande de valeur de l'ard")
     print(ard.parsedata('is', data))
     ard.sendack(messageid, (i, ))
-    print("envoi de la valeur a l'ard: %s", i)
+    print("envoi de la valeur a l'ard: %s" % i)
     i = i + 1
     
 
-ard = FullSerial('/dev/ttyUSB0', baudrate=9600)
+ard = FullSerial('/dev/ttyUSB1', baudrate=9600)
 
 ard.attach(2, test)
 
@@ -286,21 +287,21 @@ while True:
     except (KeyboardInterrupt, SystemExit):
         ard.end()
         sys.exit(0)
-
-
+"""
 
 
 
 """
-"""    
 for i in range(0, 20):
-    print(i)
-    resp = ard.sendmessage(2, (i, "coucou"), ack=True)
+    #print(i)
+    print("Demande de la valeur a l ard")
+    resp = ard.sendmessage(2, (i, "i from pc ?"), ack=True)
     #resp = ard.sendmessage(2, (i,) , ack = True)
     values = ard.parsedata("is", resp)
-    print("retour de l'ack : ")
-    print(values)
+    print("retour de l'ack : %s" % values[0])
+    #print(values)
     time.sleep(1)
-    """
+"""
 time.sleep(10)
 ard.end()
+0/0
