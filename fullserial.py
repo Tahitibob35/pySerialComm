@@ -4,7 +4,6 @@ import sys
 import time
 import threading
 
-#ser = serial.Serial('/dev/ttyUSB1')
 
 START =  b'\x61'
 END =    b'\x62'
@@ -56,8 +55,8 @@ class FullSerial():
                 print(self.__ackdata)            
                 continue
             action, messageid, data = msg
-            print("msg received : ");
-            print(msg)
+            #print("msg received : ");
+            #print(msg)
 
             if action == 0:                        # ACK received
                 if messageid in self.__ackwaited:
@@ -115,7 +114,7 @@ class FullSerial():
                         elif byte == TEND:
                             self.receptiondata += END
                         elif byte == TESC:
-                            self.receptiondata += ESC
+                             self.receptiondata += ESC
                         else:
                             raise ValueError("Unknow escaped character : %s" % byte)
                         self.esc = False
@@ -169,8 +168,8 @@ class FullSerial():
                     self.payload = self.payload + bytearray([0])
                     
         #print(self.payload)
-        print("lock acquired for :")
-        print(action, messageid, values)
+        #print("lock acquired for :")
+        #print(action, messageid, values)
         self.__seriallock.acquire()
         self.serial.write(START)                                   # The START flag
         self.__writetoserial(self.__checksum(self.payload))        # The checksum
@@ -199,11 +198,11 @@ class FullSerial():
         if ack:
             if self.__threadstarted:                                                #Mode thread
                 self.__seriallock.release()
+                #print("lock released for :")
+                #print(action, messageid, values)
                 result =  evt.wait(ACK_TIMEOUT / 1000)
                 del self.__ackwaited[messageid]
                 del evt
-                print("lock released for :")
-                print(action, messageid, values)
                 
 
                 if not result:
@@ -263,19 +262,17 @@ class FullSerial():
     def attach(self, action, function):
         self.__actions[action] = function
 
-i = 0
+pccnt = 0
 
 #Ajouter le messageid avec un decorateur ?
 def test(messageid, data):
-    global i
-    print("demande de valeur de l'ard")
-    print(ard.parsedata('is', data))
-    ard.sendack(messageid, (i, ))
-    print("envoi de la valeur a l'ard: %s" % i)
-    i = i + 1
+    global pccnt
+    ard.sendack(messageid, (pccnt, ))
+    print("envoi de la valeur a l'ard: %s" % pccnt)
+    pccnt = pccnt + 1
     
 
-ard = FullSerial('/dev/ttyUSB1', baudrate=9600)
+ard = FullSerial('/dev/ttyUSB0', baudrate=9600)
 
 ard.attach(2, test)
 
@@ -288,20 +285,21 @@ while True:
         ard.end()
         sys.exit(0)
 """
-
-
-
 """
+resp = ard.sendmessage(2, (i, "i from ard ?"), ack=True)
+values = ard.parsedata("is", resp)
+print(values)"""
+
+
 for i in range(0, 20):
     #print(i)
-    print("Demande de la valeur a l ard")
-    resp = ard.sendmessage(2, (i, "i from pc ?"), ack=True)
+    resp = ard.sendmessage(2, (i, "i fr"), ack=True)
     #resp = ard.sendmessage(2, (i,) , ack = True)
     values = ard.parsedata("is", resp)
     print("retour de l'ack : %s" % values[0])
     #print(values)
-    time.sleep(1)
-"""
+    time.sleep(10)
+
 time.sleep(10)
 ard.end()
 0/0
