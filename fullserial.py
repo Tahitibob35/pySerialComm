@@ -3,6 +3,7 @@ import struct
 import sys
 import time
 import threading
+import traceback
 
 
 START =  b'\x61'
@@ -204,11 +205,12 @@ class FullSerial():
                 del self.__ackwaited[messageid]
                 del evt
                 
-
+                self.__release_id(messageid)
                 if not result:
                     raise TimeoutError("Ack timeout expired...")
                 data = self.__ackdata[messageid]
                 del self.__ackdata[messageid]
+                
                 return data
             else:                                                                   #Mode sans thread
                 action, messageid, data = self.getAck(messageid)
@@ -262,23 +264,26 @@ class FullSerial():
     def attach(self, action, function):
         self.__actions[action] = function
 
+
 pccnt = 0
 
 #Ajouter le messageid avec un decorateur ?
 def test(messageid, data):
     global pccnt
     ard.sendack(messageid, (pccnt, ))
-    print("envoi de la valeur a l'ard: %s" % pccnt)
+    #print("envoi de la valeur a l'ard: %s" % pccnt)
     pccnt = pccnt + 1
+    if pccnt == 32767:
+        pccnt = 0
     
 
-ard = FullSerial('/dev/ttyUSB0', baudrate=9600)
+ard = FullSerial('/dev/ttyUSB0', baudrate=115200)
 
 ard.attach(2, test)
 
 ard.begin()
 """
-while True:
+while True:-
     try:
         time.sleep(0.1)
     except (KeyboardInterrupt, SystemExit):
@@ -290,15 +295,30 @@ resp = ard.sendmessage(2, (i, "i from ard ?"), ack=True)
 values = ard.parsedata("is", resp)
 print(values)"""
 
-
-for i in range(0, 20):
+n = time.time()
+error = 0
+for i in range(0, 20000000):
     #print(i)
-    resp = ard.sendmessage(2, (i, "i fr"), ack=True)
-    #resp = ard.sendmessage(2, (i,) , ack = True)
-    values = ard.parsedata("is", resp)
-    print("retour de l'ack : %s" % values[0])
-    #print(values)
-    time.sleep(10)
+    try:
+        resp = ard.sendmessage(2, (0,), ack=True)
+        #resp = ard.sendmessage(2, (i,) , ack = True)
+        values = ard.parsedata("i", resp)
+        #print("<- %s" % values[0])
+        #print(values)
+        #time.sleep(10)
+    except:
+        pass
+        error= error + 1
+        print(i, time.time() - n, "%s/%s" %(error, i))
+        """
+        print(sys.exc_info()[0])
+        print(sys.exc_info()[1])
+        print(dir(sys.exc_info()[2]))
+        traceback.print_exc(file=sys.stdout)
+        """
+
+    if i%10000 == 0:
+        print(i)
 
 time.sleep(10)
 ard.end()
