@@ -152,9 +152,9 @@ class FullSerial():
 
 
     def __sendmessage(self, action, messageid, values):
-        self.payload = bytearray()
-        self.payload = bytes((messageid, ))
-        self.payload = self.payload + bytes([action])
+        payload = bytearray()
+        payload = bytes((messageid, ))
+        payload = payload + bytes([action])
 
         if values:
             for value in values:
@@ -162,20 +162,23 @@ class FullSerial():
                     if not(-32768 <= value <= 32767):
                         raise ValueError('Arduino integer must be in range(-32,768, 32,767)')
                     lowbyte, highbyte = struct.pack('h', value)
-                    self.payload = self.payload + bytes([highbyte])           # First byte
-                    self.payload = self.payload + bytes([lowbyte])            # Second byte
+                    payload = payload + bytes([highbyte])           # First byte
+                    payload = payload + bytes([lowbyte])            # Second byte
                 if isinstance(value, str):
-                    self.payload = self.payload + bytearray(value, "utf-8")
-                    self.payload = self.payload + bytearray([0])
+                    payload = payload + bytearray(value, "utf-8")
+                    payload = payload + bytearray([0])
                     
         #print(self.payload)
         #print("lock acquired for :")
         #print(action, messageid, values)
         self.__seriallock.acquire()
         self.serial.write(START)                                   # The START flag
-        self.__writetoserial(self.__checksum(self.payload))        # The checksum
-        self.__writetoserial(self.payload)                         # The payload
+        #print(START, end="")
+        self.__writetoserial(self.__checksum(payload))        # The checksum
+        self.__writetoserial(payload)                         # The payload
+        
         self.serial.write(END)                                     # The END flag
+        #print(END)
         
             
         
@@ -207,6 +210,8 @@ class FullSerial():
                 
                 self.__release_id(messageid)
                 if not result:
+                    print("id:{:02x} , action:{:02x}, {}".format(messageid, action, values));
+                    0/0
                     raise TimeoutError("Ack timeout expired...")
                 data = self.__ackdata[messageid]
                 del self.__ackdata[messageid]
@@ -230,6 +235,7 @@ class FullSerial():
         data = data.replace(START, ESC + TSTART)
         data = data.replace(END, ESC + TEND)
         self.serial.write(data)
+        #print(' '.join('{:02x}'.format(x) for x in data), end="")
 
     def __checksum(self, data):
         checksum = 0
@@ -277,7 +283,7 @@ def test(messageid, data):
         pccnt = 0
     
 
-ard = FullSerial('/dev/ttyUSB0', baudrate=115200)
+ard = FullSerial('/dev/ttyUSB1', baudrate=115200)
 
 ard.attach(2, test)
 
@@ -308,8 +314,14 @@ for i in range(0, 20000000):
         #time.sleep(10)
     except:
         pass
+       
         error= error + 1
+        #print("--")
         print(i, time.time() - n, "%s/%s" %(error, i))
+        #print(''.join('{:02x}'.format(x) for x in ard.payload))
+        
+        #print("--")
+        0/0
         """
         print(sys.exc_info()[0])
         print(sys.exc_info()[1])
@@ -317,8 +329,8 @@ for i in range(0, 20000000):
         traceback.print_exc(file=sys.stdout)
         """
 
-    if i%10000 == 0:
-        print(i)
+    if i%1000 == 0:
+        print(i, error, values, pccnt)
 
 time.sleep(10)
 ard.end()
