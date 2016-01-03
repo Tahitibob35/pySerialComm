@@ -44,8 +44,10 @@ class FullSerial():
 
 
     def end(self):
+        print("A")
         self.__stoprequested = True
         self.thread.join()
+        print("B")
 
 
     def listenner(self):
@@ -277,17 +279,17 @@ pccnt = 0
 def test(messageid, data):
     global pccnt
     ard.sendack(messageid, (pccnt, ))
-    #print("envoi de la valeur a l'ard: %s" % pccnt)
+    print("envoi de la valeur a l'ard: %s" % pccnt)
     pccnt = pccnt + 1
     if pccnt == 32767:
         pccnt = 0
     
 
-ard = FullSerial('/dev/ttyUSB1', baudrate=115200)
+ard = FullSerial('/dev/ttyUSB0', baudrate=115200)
 
 ard.attach(2, test)
 
-ard.begin()
+#ard.begin()
 """
 while True:-
     try:
@@ -303,7 +305,7 @@ print(values)"""
 
 n = time.time()
 error = 0
-for i in range(0, 20000000):
+for i in range(0, 2000000):
     #print(i)
     try:
         resp = ard.sendmessage(2, (0,), ack=True)
@@ -332,6 +334,5 @@ for i in range(0, 20000000):
     if i%1000 == 0:
         print(i, error, values, pccnt)
 
-time.sleep(10)
+#time.sleep(10)
 ard.end()
-0/0
