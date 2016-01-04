@@ -5,7 +5,6 @@ import time
 
 pccnt = 0
 
-
 def test(messageid, data):
     global pccnt
     values = ard.parsedata("i", data)
