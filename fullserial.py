@@ -53,9 +53,7 @@ class FullSerial():
     def listenner(self):
         while not self.__stoprequested:
             msg = self.__read()
-            if msg == None:
-                print(self.__ackwaited)
-                print(self.__ackdata)            
+            if msg == None:        
                 continue
             action, messageid, data = msg
             #print("msg received : ");
@@ -73,6 +71,18 @@ class FullSerial():
             
         print("Stopping listener")
         self.__threadstarted = False
+
+
+    def checkincomingmessages(self):        
+        while True:
+            msg = self.__read(timeout=500)
+            
+            if msg == None:
+                return
+            action, messageid, data = msg
+            if action in self.__actions:
+                self.__actions[action](messageid, data)
+            
         
         
     def __read(self, timeout=None, expectedid = None):
@@ -81,7 +91,6 @@ class FullSerial():
         while True:
             if timeout:
                 if ((self.__getMillis() - start_time) > timeout):
-                    print("to")
                     return None
             if self.__stoprequested:
                 return None
@@ -99,13 +108,12 @@ class FullSerial():
                     #print("Data received :")
                     #print(self.receptiondata)
                     message_id = self.receptiondata[2]
-                    if (expectedid == None) or (expectedid == message_id):
-                        action = self.receptiondata[1]
-                        data = None
-                        if len(self.receptiondata) > 3:
-                            data = self.receptiondata[3:]
-                        return action, message_id, data
-                    print("unexpected msg: %s" % self.receptiondata)
+                    action = self.receptiondata[1]
+                    data = None
+                    if len(self.receptiondata) > 3:
+                        data = self.receptiondata[3:]
+                    return action, message_id, data
+                    
                                                     
         
                 elif byte == ESC:
@@ -131,7 +139,9 @@ class FullSerial():
             byte = self.serial.read(1)
             print(byte)
         """
-        result = self.__read(ACK_TIMEOUT, expected_id)
+        while True:
+            result = self.__read(ACK_TIMEOUT, expected_id)
+            action, messageid, data = result
         if result == None:
             raise TimeoutError("Ack timeout expired...")
 
@@ -198,32 +208,40 @@ class FullSerial():
             evt = threading.Event()            
             self.__ackwaited[messageid] = evt
 
+        if not self.__threadstarted:
+            self.checkincomingmessages()
         self.__sendmessage(action, messageid, values)       
         
         
         if ack:
             if self.__threadstarted:                                                #Mode thread
                 self.__seriallock.release()
-                #print("lock released for :")
-                #print(action, messageid, values)
                 result =  evt.wait(ACK_TIMEOUT / 1000)
                 del self.__ackwaited[messageid]
                 del evt
                 
                 self.__release_id(messageid)
                 if not result:
-                    print("id:{:02x} , action:{:02x}, {}".format(messageid, action, values));
-                    0/0
                     raise TimeoutError("Ack timeout expired...")
                 data = self.__ackdata[messageid]
                 del self.__ackdata[messageid]
                 
                 return data
             else:                                                                   #Mode sans thread
-                action, messageid, data = self.getAck(messageid)
-                self.__release_id(messageid)
+                
+                start_time = self.__getMillis()
+                    
+                while ((self.__getMillis() - start_time) < ACK_TIMEOUT):            # Traitement des messages entrants
+                    action, incoming_messageid, data = self.__read(ACK_TIMEOUT)     # Un message recu
+                    if ( action==0 ) and ( messageid == incoming_messageid):        # Si accuse attendu
+                        self.__seriallock.release()
+                        self.__release_id(messageid)
+                        return data
+                    
                 self.__seriallock.release()
-                return data
+                self.__release_id(messageid)
+                        
+                raise TimeoutError("Ack timeout expired...")
         self.__seriallock.release()
         
 
@@ -305,16 +323,27 @@ print(values)"""
 
 n = time.time()
 error = 0
+values = None
+
+for i in range(0, 2000000):
+    resp = ard.sendmessage(2, (0,"David"), ack=True)
+    #resp = ard.sendmessage(2, (i,) , ack = True)
+    values = ard.parsedata("is", resp)
+    print("<- %s, %s" % (values[0], values[1]))
+    time.sleep(2)
+    
+
 for i in range(0, 2000000):
     #print(i)
     try:
-        resp = ard.sendmessage(2, (0,), ack=True)
+        resp = ard.sendmessage(2, (0,"David"), ack=True)
+        print(resp)
         #resp = ard.sendmessage(2, (i,) , ack = True)
-        values = ard.parsedata("i", resp)
-        #print("<- %s" % values[0])
+        values = ard.parsedata("is", resp)
+        print("<- %s" % (values[0], values[1]))
         #print(values)
-        #time.sleep(10)
     except:
+        print("No ack received...")
         pass
        
         error= error + 1
@@ -323,16 +352,17 @@ for i in range(0, 2000000):
         #print(''.join('{:02x}'.format(x) for x in ard.payload))
         
         #print("--")
-        0/0
+        #0/0
         """
         print(sys.exc_info()[0])
         print(sys.exc_info()[1])
         print(dir(sys.exc_info()[2]))
         traceback.print_exc(file=sys.stdout)
         """
-
     if i%1000 == 0:
+        pass
         print(i, error, values, pccnt)
+    #ard.checkincomingmessages()
 
-#time.sleep(10)
+    time.sleep(10)
 ard.end()
