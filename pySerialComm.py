@@ -280,10 +280,10 @@ if __name__ == '__main__':
 
     pccnt = 0
 
-    # Callback of the action #2
     def test(messageid, data):
         global pccnt
-        print("<- Request received from arduino")
+        values = ard.parsedata("i", data)
+        print("<- Request received from arduino : %s" % values[0])
         print("-> Sending the integer to arduino : %s" % pccnt)
         ard.sendack(messageid, (pccnt, ))
         pccnt = pccnt + 1
@@ -293,7 +293,6 @@ if __name__ == '__main__':
 
     ard = SerialComm('/dev/ttyUSB0', baudrate=115200)
 
-    # Action#2 -> callback function test()
     ard.attach(2, test)
 
     thread = threading.Thread(target=ard.listenner, args=())

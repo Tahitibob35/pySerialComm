@@ -8,7 +8,8 @@ pccnt = 0
 
 def test(messageid, data):
     global pccnt
-    print("<- Request received from arduino")
+    values = ard.parsedata("i", data)
+    print("<- Request received from arduino : %s" % values[0])
     print("-> Sending the integer to arduino : %s" % pccnt)
     ard.sendack(messageid, (pccnt, ))
     pccnt = pccnt + 1
