@@ -94,8 +94,8 @@ class SerialComm():
                     self.receptionstarted = False
                     #print("Data received :")
                     #print(self.receptiondata)
-                    message_id = self.receptiondata[2]
-                    action = self.receptiondata[1]
+                    message_id = self.receptiondata[1]                          # ID ,  action inverses , a verifier
+                    action = self.receptiondata[2]
                     data = None
                     if len(self.receptiondata) > 3:
                         data = self.receptiondata[3:]
