@@ -16,17 +16,17 @@ This python module simplifies serial communications with an arduino board (https
 
 Arduino receiver code
 ```c
-SerialComm s(Serial);
+SerialComm s ( Serial );
 
 void remoteAnalogWrite( void ) {
     int pin = 0;
     int value = 0;
-    s.getData("ii", &pin, &value);
-    analogWrite(pin, value);
+    s.getData( "ii", &pin , &value );
+    analogWrite( pin , value );
 }
 
-void setup() {
-  s.attach(2, remoteAnalogWrite);
+void setup( ) {
+  s.attach( 2 , remoteAnalogWrite );
 }
 ```
 
@@ -43,17 +43,17 @@ resp = arduino.sendmessage(2, (pin, value), ack=False)
 ### Arduino receiver code
 
 ```c
-SerialComm s(Serial);
+SerialComm s( Serial );
 
 void remoteAnalogRead( void ) {
     int pin;
-    s.getData("i", &pin);
-    int value = analogRead(pin);
-    s.sendAck(s.getId() , "i", value);
+    s.getData( "i" , &pin );
+    int value = analogRead( pin );
+    s.sendAck( "i" , value );
 }
 
-void setup() {
-  s.attach(2, remoteAnalogRead);
+void setup( ) {
+  s.attach( 2, remoteAnalogRead );
 }
 ```
 
