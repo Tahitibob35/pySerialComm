@@ -215,7 +215,12 @@ class SerialComm():
                 start_time = self.__getMillis()
                     
                 while ((self.__getMillis() - start_time) < ACK_TIMEOUT):            # Traitement des messages entrants
-                    action, incoming_messageid, data = self.__read(ACK_TIMEOUT)     # Un message recu
+                    result = self.__read(ACK_TIMEOUT)                               # Attente de l accuse
+                    if not result:
+                        self.__seriallock.release()
+                        self.__release_id(messageid)
+                        raise TimeoutError("Ack timeout expired...")                    
+                    action, incoming_messageid, data = result                       # Un message recu
                     if ( action==0 ) and ( messageid == incoming_messageid):        # Si accuse attendu
                         self.__seriallock.release()
                         self.__release_id(messageid)
@@ -248,6 +253,10 @@ class SerialComm():
 
 
     def parsedata(self, dataformat = None, data = None):
+
+        if data == None:
+            return None
+        
         values = []
         index = 0
         for f in dataformat:
@@ -291,14 +300,14 @@ if __name__ == '__main__':
             pccnt = 0
         
 
-    ard = SerialComm('/dev/ttyUSB0', baudrate=115200)
+    ard = SerialComm('/dev/ttyUSB0', baudrate=9600)
 
     ard.attach(2, test)
 
-    thread = threading.Thread(target=ard.listenner, args=())
+    """thread = threading.Thread(target=ard.listenner, args=())
     thread.daemon = True                            # Daemonize thread
     thread.start()                                  # Start the execution
-
+    """
 
     for i in range(0, 5):
         try:
