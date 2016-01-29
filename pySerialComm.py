@@ -46,7 +46,7 @@ class SerialComm():
             if msg == None:        
                 continue
             action, messageid, data = msg
-            #print("msg received : ");
+            print("msg received : ");
             #print(msg)
 
             if action == 0:                        # ACK received
@@ -98,7 +98,7 @@ class SerialComm():
                     action = self.receptiondata[2]
                     data = None
                     if len(self.receptiondata) > 3:
-                        data = self.receptiondata[3:]
+                        data = self.receptiondata[3:-1]
                     return action, message_id, data
         
                 elif byte == ESC:
@@ -170,8 +170,8 @@ class SerialComm():
         self.__seriallock.acquire()
         self.serial.write(START)                                   # The START flag
         #print(START, end="")
-        self.__writetoserial(self.__checksum(payload))        # The checksum
         self.__writetoserial(payload)                         # The payload
+        self.__writetoserial(self.__checksum(payload))        # The checksum
         
         self.serial.write(END)                                     # The END flag
         #print(END)        
@@ -261,7 +261,7 @@ class SerialComm():
         index = 0
         for f in dataformat:
             if f == 'i':
-                if len(data) < (index + 2):
+                if len(data) < (index + 2):      # A verifier....
                     raise IndexError("Too much values excepted (%s) for %s" % (dataformat, data))
                 value = (data[index]<<8)+data[index+1]
                 index += 2
@@ -293,10 +293,10 @@ if __name__ == '__main__':
         global pccnt
         values = ard.parsedata("i", data)
         print("<- Request received from arduino : %s" % values[0])
-        print("-> Sending the integer to arduino : %s" % pccnt)
+        print("-> Sending the python counter to arduino : %s" % pccnt)
         ard.sendack(messageid, (pccnt, ))
-        pccnt = pccnt + 1
-        if pccnt == 32767:
+        pccnt = pccnt + 3
+        if pccnt > 32767:
             pccnt = 0
         
 
@@ -307,18 +307,22 @@ if __name__ == '__main__':
     """thread = threading.Thread(target=ard.listenner, args=())
     thread.daemon = True                            # Daemonize thread
     thread.start()                                  # Start the execution
-    """
+    
+
+    resp = ard.sendmessage(2, (5, "This is a string"), ack=True)
+    values = ard.parsedata("is", resp)
+    print(values)"""
+    
 
     for i in range(0, 5):
         try:
             print("-> Sending an integer and a string to arduino")
             resp = ard.sendmessage(2, (i,"This is a string"), ack=True)
             values = ard.parsedata("is", resp)
-            print("<- Ack contains two values : %s, %s" % (values[0], values[1]))
-            time.sleep(1)
+            print("<- Ack contains two values (arduino counter, a string) : %s, %s" % (values[0], values[1]))
         except TimeoutError:
             print("No ack received")
-        
+    
 
     ard.stop()
     thread.join()
