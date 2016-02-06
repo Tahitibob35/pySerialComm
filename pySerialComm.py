@@ -63,10 +63,12 @@ class SerialComm():
 
     def checkincomingmessages(self):        
         while True:
-            msg = self.__read(timeout=500)
+            msg = self.__read(timeout=100)
             
             if msg == None:
+                print("checkincomingmessages - No incoming message")
                 return
+            print("checkincomingmessages - An incoming message")
             action, messageid, data = msg
             if action in self.__actions:
                 self.__actions[action](messageid, data)            
@@ -85,12 +87,12 @@ class SerialComm():
             byte = self.serial.read(1)
             #print(byte)
             if byte == START:
-                #print("START")
+                print("__read - START")
                 self.receptionstarted = True
                 self.receptiondata = bytearray()
             elif self.receptionstarted :
                 if byte == END:
-                    #print("END")
+                    print("__read - END")
                     self.receptionstarted = False
                     #print("Data received :")
                     #print(self.receptiondata)
@@ -98,7 +100,8 @@ class SerialComm():
                     action = self.receptiondata[2]
                     data = None
                     if len(self.receptiondata) > 3:
-                        data = self.receptiondata[3:-1]
+                        data = self.receptiondata[3:-1]                    
+                    print("__read - %s, %s" % (action, message_id))
                     return action, message_id, data
         
                 elif byte == ESC:
@@ -192,6 +195,7 @@ class SerialComm():
             self.__ackwaited[messageid] = evt
 
         if not self.__threadstarted:
+            print("sendmessage - Checking incoming message" )
             self.checkincomingmessages()
         self.__sendmessage(action, messageid, values)       
         
@@ -291,25 +295,32 @@ if __name__ == '__main__':
 
     def test(messageid, data):
         global pccnt
-        values = ard.parsedata("i", data)
-        print("<- Request received from arduino : %s" % values[0])
+        values = ard.parsedata("is", data)
+        print("<- Request received from arduino : %s, %s" % (values[0], values[1]))
         print("-> Sending the python counter to arduino : %s" % pccnt)
         ard.sendack(messageid, (pccnt, ))
         pccnt = pccnt + 3
         if pccnt > 32767:
             pccnt = 0
+
+    def test3(messageid, data):
+        print("action 3 received !!")
+        
+        values = ard.parsedata("si", data)
+        print(values)
         
 
-    ard = SerialComm('/dev/ttyUSB0', baudrate=9600)
+    ard = SerialComm('/dev/ttyUSB2', baudrate=9600)
 
     ard.attach(2, test)
+    ard.attach(3, test3)
 
-    """thread = threading.Thread(target=ard.listenner, args=())
+
+    thread = threading.Thread(target=ard.listenner, args=())
     thread.daemon = True                            # Daemonize thread
     thread.start()                                  # Start the execution
     
-
-    resp = ard.sendmessage(2, (5, "This is a string"), ack=True)
+    """resp = ard.sendmessage(2, (5, "This is a string"), ack=True)
     values = ard.parsedata("is", resp)
     print(values)"""
     
@@ -322,7 +333,8 @@ if __name__ == '__main__':
             print("<- Ack contains two values (arduino counter, a string) : %s, %s" % (values[0], values[1]))
         except TimeoutError:
             print("No ack received")
-    
+
+    time.sleep(10)
 
     ard.stop()
     thread.join()
